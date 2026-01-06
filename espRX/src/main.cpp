@@ -202,17 +202,17 @@ float totalRSSI = 0;
 float minRSSI = 0;
 float maxRSSI = -200;
 
-// NEW: SNR and Frequency Error statistics
-float totalSNR = 0;
-float minSNR = 100;
-float maxSNR = -100;
+// Frequency Error statistics
 long totalFreqError = 0;
 long minFreqError = 999999;
 long maxFreqError = -999999;
 
-// NEW: Bit error injection statistics
+// Bit error injection statistics
 uint32_t totalBitsInjected = 0;
 uint32_t packetsWithInjectedErrors = 0;
+uint32_t packetsWithOneBitError = 0; // 1-bit errors (Hamming should correct)
+uint32_t packetsWithTwoBitError = 0; // 2-bit errors (Hamming cannot correct)
+uint32_t oneBitErrorsCorrected = 0;  // Successfully corrected 1-bit errors
 
 // For Kalman prediction
 float lastTemp = 25.0;
@@ -357,6 +357,11 @@ void loop() {
       // Update injection statistics
       totalBitsInjected += bitsFlipped;
       packetsWithInjectedErrors++;
+      if (bitsFlipped == 1) {
+        packetsWithOneBitError++;
+      } else {
+        packetsWithTwoBitError++;
+      }
 
       Serial.print("*** INJECTED ");
       Serial.print(bitsFlipped);
@@ -383,6 +388,11 @@ void loop() {
       return;
     }
 
+    // Track successful 1-bit error correction
+    if (bitsFlipped == 1 && errorsCorrected > 0) {
+      oneBitErrorsCorrected++;
+    }
+
     // Update statistics
     totalPacketsReceived++;
     totalErrorsDetected += errorsDetected;
@@ -393,13 +403,8 @@ void loop() {
     if (rssi > maxRSSI)
       maxRSSI = rssi;
 
-    // NEW: Update SNR and Frequency Error statistics
+    // Update Frequency Error statistics
     long freqError = LoRa.packetFrequencyError();
-    totalSNR += snr;
-    if (snr < minSNR)
-      minSNR = snr;
-    if (snr > maxSNR)
-      maxSNR = snr;
     totalFreqError += freqError;
     if (freqError < minFreqError)
       minFreqError = freqError;
@@ -541,25 +546,26 @@ void printStatistics() {
   Serial.print("Uncorrectable errors: ");
   Serial.println(uncorrectableErrors);
 
-  // NEW: Bit injection statistics (only if BIT_ERROR_MODE is enabled)
+  // Bit injection statistics (only if BIT_ERROR_MODE is enabled)
   if (BIT_ERROR_MODE) {
     Serial.println("-------- BIT INJECTION TEST --------");
-    Serial.print("Packets with injected errors: ");
-    Serial.println(packetsWithInjectedErrors);
-    Serial.print("Total bits injected: ");
-    Serial.println(totalBitsInjected);
-    Serial.print("Hamming correction success: ");
-    if (packetsWithInjectedErrors > 0) {
-      // Count how many injected errors were successfully corrected
-      // If errors detected >= injected and corrected >= injected, FEC worked
+    Serial.print("Packets with 1-bit errors: ");
+    Serial.print(packetsWithOneBitError);
+    Serial.print(" (corrected: ");
+    Serial.print(oneBitErrorsCorrected);
+    Serial.println(")");
+    Serial.print("Packets with 2-bit errors: ");
+    Serial.print(packetsWithTwoBitError);
+    Serial.println(" (uncorrectable)");
+    Serial.print("Hamming success rate: ");
+    if (packetsWithOneBitError > 0) {
+      // Success = 1-bit errors that were corrected / total 1-bit errors
       float successRate =
-          100.0 * (float)totalErrorsCorrected / (float)totalBitsInjected;
-      if (successRate > 100.0)
-        successRate = 100.0; // Cap at 100%
+          100.0 * (float)oneBitErrorsCorrected / (float)packetsWithOneBitError;
       Serial.print(successRate, 1);
       Serial.println("%");
     } else {
-      Serial.println("N/A (no errors injected yet)");
+      Serial.println("N/A (no 1-bit errors injected)");
     }
   }
 
@@ -577,19 +583,6 @@ void printStatistics() {
   Serial.print(minRSSI);
   Serial.print(", max: ");
   Serial.print(maxRSSI);
-  Serial.println(")");
-
-  // SNR (Signal-to-Noise Ratio)
-  Serial.print("Average SNR: ");
-  if (totalPacketsReceived > 0) {
-    Serial.print(totalSNR / totalPacketsReceived, 2);
-  } else {
-    Serial.print("N/A");
-  }
-  Serial.print(" dB (min: ");
-  Serial.print(minSNR, 1);
-  Serial.print(", max: ");
-  Serial.print(maxSNR, 1);
   Serial.println(")");
 
   // Frequency Error
