@@ -585,19 +585,6 @@ void printStatistics() {
   Serial.print(maxRSSI);
   Serial.println(")");
 
-  // Frequency Error
-  Serial.print("Avg Freq Error: ");
-  if (totalPacketsReceived > 0) {
-    Serial.print(totalFreqError / (long)totalPacketsReceived);
-  } else {
-    Serial.print("N/A");
-  }
-  Serial.print(" Hz (min: ");
-  Serial.print(minFreqError);
-  Serial.print(", max: ");
-  Serial.print(maxFreqError);
-  Serial.println(")");
-
   Serial.println("-------- ERROR RATES --------");
 
   // BER (Bit Error Rate)
@@ -669,9 +656,7 @@ void handleCorruptedPacket(int rssi, float snr) {
   Serial.print(expectedSeq);
   Serial.print(" | RSSI=");
   Serial.print(rssi);
-  Serial.print(" dBm | SNR=");
-  Serial.print(snr, 1);
-  Serial.println(" dB");
+  Serial.println(" dBm");
 
   // Use Kalman Filter to predict the values
   float predictedTemp = kfTemp.predict();
