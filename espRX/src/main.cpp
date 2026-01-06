@@ -12,7 +12,7 @@
 #define LORA_BAND 433E6 // 433MHz
 
 // Test mode - để giả lập mất gói
-#define TEST_MODE false
+#define TEST_MODE true
 #define DROP_RATE 15
 
 // ========== BIT ERROR SIMULATION - Test Hamming(7,4) FEC ==========
@@ -331,13 +331,29 @@ void loop() {
         bitsToFlipNow = (random(100) < TWO_BIT_ERROR_CHANCE) ? 2 : 1;
       }
 
-      // Flip random bits in the encoded data
-      for (int i = 0; i < bitsToFlipNow; i++) {
-        int bytePos = random(len);             // Random byte position
-        int bitPos = random(8);                // Random bit position (0-7)
-        encodedData[bytePos] ^= (1 << bitPos); // Flip the bit
-        bitsFlipped++;
+      if (bitsToFlipNow == 1) {
+        // 1-bit error: flip any random bit - Hamming can correct this
+        int bytePos = random(len);
+        int bitPos = random(8);
+        encodedData[bytePos] ^= (1 << bitPos);
+        bitsFlipped = 1;
+      } else {
+        // 2-bit error: MUST flip 2 bits in SAME codeword (same byte in encoded
+        // data) Each byte in encodedData is a 7-bit Hamming codeword (stored in
+        // 8 bits) Hamming(7,4) can only correct 1-bit errors, so 2 bits in same
+        // codeword = uncorrectable
+        int bytePos = random(len); // Pick a random codeword
+        int bitPos1 = random(7);   // First bit position (0-6, only 7 bits used)
+        int bitPos2;
+        do {
+          bitPos2 = random(7); // Second bit position, must be different
+        } while (bitPos2 == bitPos1);
+
+        encodedData[bytePos] ^= (1 << bitPos1); // Flip first bit
+        encodedData[bytePos] ^= (1 << bitPos2); // Flip second bit in SAME byte
+        bitsFlipped = 2;
       }
+
       // Update injection statistics
       totalBitsInjected += bitsFlipped;
       packetsWithInjectedErrors++;
@@ -347,7 +363,8 @@ void loop() {
       if (bitsFlipped == 1) {
         Serial.println(" BIT ERROR - Hamming should CORRECT ***");
       } else {
-        Serial.println(" BIT ERRORS - CRC will FAIL, Kalman will PREDICT ***");
+        Serial.println(" BIT ERRORS in SAME CODEWORD - CRC will FAIL, Kalman "
+                       "will PREDICT ***");
       }
     }
 
