@@ -12,7 +12,7 @@
 #define LORA_BAND 433E6 // 433MHz
 
 // Test mode - để giả lập mất gói
-#define TEST_MODE true
+#define TEST_MODE false
 #define DROP_RATE 15
 
 // ========== BIT ERROR SIMULATION - Test Hamming(7,4) FEC ==========
